@@ -2,9 +2,13 @@
 
 Give Claude your website, and it builds an animated email signature from it: a small looping GIF that shows your business doing its job, plus a page where your team types their name and copies a ready-to-paste signature for Gmail, Outlook or Apple Mail.
 
-![Example signature](examples/northwind.gif)
+[![Qelvra's animated email signature](examples/qelvra.gif)](https://qelvra.in)
 
-*Example for a made-up bookkeeping brand. It opens and ends on the brand card, so mail apps that show only the first frame still get a finished signature.*
+*[Qelvra](https://qelvra.in)'s own signature: a customer question answered step by step.*
+
+![Example signature for a made-up brand](examples/northwind.gif)
+
+*The same scene for a made-up bookkeeping brand. Each loop opens and ends on the brand card, so mail apps that show only the first frame still get a finished signature.*
 
 ## Install
 
