@@ -6,9 +6,15 @@ Give Claude your website, and it builds an animated email signature from it: a s
 
 *[Qelvra](https://qelvra.in)'s own signature: a customer question answered step by step.*
 
-![Example signature for a made-up brand](examples/northwind.gif)
+![Animated signature example for Wispr Flow](examples/wispr-flow.gif)
 
-*The same scene for a made-up bookkeeping brand. Each loop opens and ends on the brand card, so mail apps that show only the first frame still get a finished signature.*
+*Wispr Flow: a figure from their home page counting up.*
+
+![Animated signature example for Granola](examples/granola.gif)
+
+*Granola: a question answered step by step, in their own words.*
+
+Each loop opens and ends on the brand card, so mail apps that show only the first frame still get a finished signature. The Wispr Flow and Granola examples were made by this skill from each company's public website, to show what it does. We're not affiliated with them and they haven't endorsed this.
 
 ## Install
 
