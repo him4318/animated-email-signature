@@ -1,0 +1,31 @@
+{
+  "name": "Northwind",
+  "domain": "northwind.example",
+  "siteUrl": "https://northwind.example",
+  "gifUrl": "https://northwind.example/email/signature.gif",
+  "email": "hello@northwind.example",
+  "tagline": "Your bookkeeping, done for you",
+  "fonts": { "display": "Fraunces", "body": "Inter" },
+  "colors": {
+    "bg": "#12161c",
+    "card": "#1a2029",
+    "line": "#2a323d",
+    "text": "#eef1f5",
+    "muted": "#c3cad4",
+    "subtle": "#8d96a3",
+    "accent": "#4fb3a9",
+    "link": "#2f8f86",
+    "good": "#7fcf9a",
+    "bad": "#f0948a"
+  },
+  "story": {
+    "question": "Are my books ready for the quarter?",
+    "steps": [
+      { "text": "Reading 312 bank transactions", "status": "ok" },
+      { "text": "Matching receipts", "status": "ok" },
+      { "text": "4 receipts missing", "status": "warn" }
+    ],
+    "result": "Reminder sent for each one",
+    "details": ["Office chairs · 12 Mar", "Cloud hosting · 2 Apr", "Team lunch · 9 Apr"]
+  }
+}

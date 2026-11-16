@@ -1,0 +1,241 @@
+<!doctype html>
+<!--
+  The animated signature card. scripts/render.mjs opens this page, calls window.setup(brand) once, then
+  window.render(t) for every frame (t in seconds) and screenshots #card.
+
+  Rules every scene keeps (why: see SKILL.md):
+  - render(0) is the settled brand card. Older desktop Outlook shows only the first frame.
+  - render(LOOP) looks exactly like render(0), so the loop has no jump.
+  - Nothing changes a large area every frame (pulses, moving gradients): it multiplies the GIF size.
+
+  brand.story.type picks the scene: "chat" (question → steps → result), "counter" (a real number counts up),
+  "showcase" (2–3 product images with captions). To add a scene, add an entry to SCENES with setup(S) and
+  draw(t, S) that only draws between 1.9 s and 10.1 s.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  :root { --w: 600px; --h: 170px; --display: Georgia, serif; --body: system-ui, sans-serif; }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: transparent; font-family: var(--body); }
+  #card {
+    position: relative; width: var(--w); height: var(--h); overflow: hidden;
+    background: var(--bg); color: var(--text);
+    background-image: radial-gradient(120% 140% at 0% 0%, color-mix(in oklab, var(--accent) 18%, transparent), transparent 55%);
+  }
+  .rule { position: absolute; left: 150px; top: 26px; bottom: 26px; width: 1px; background: var(--line); }
+  #mark { position: absolute; left: 39px; top: 49px; width: 72px; height: 72px; display: grid; place-items: center; }
+  #mark img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .mono { width: 64px; height: 64px; border-radius: 18px; display: grid; place-items: center; font: 600 34px/1 var(--display);
+    background: var(--accent); color: var(--bg); }
+  #glow { position: absolute; left: 25px; top: 35px; width: 100px; height: 100px; border-radius: 50%; opacity: .7;
+    background: radial-gradient(circle, color-mix(in oklab, var(--accent) 35%, transparent), transparent 70%); }
+  .scene { position: absolute; left: 176px; right: 24px; top: 0; bottom: 0; }
+  .word { font-family: var(--display); font-size: 44px; line-height: 1; position: absolute; top: 34px; white-space: nowrap; }
+  .wordmark { position: absolute; top: 30px; height: 52px; max-width: 380px; object-fit: contain; object-position: left center; }
+  .tag { position: absolute; top: 90px; font-size: 16px; color: var(--muted); white-space: nowrap; }
+  .url { position: absolute; top: 118px; font-size: 14px; font-weight: 500; color: var(--accent); }
+  /* chat */
+  .ask { position: absolute; right: 0; top: 20px; padding: 8px 14px; border-radius: 16px 16px 4px 16px;
+    background: var(--card); border: 1px solid var(--line); font-size: 15px; white-space: nowrap; }
+  .caret { display: inline-block; width: 1.5px; height: 15px; background: var(--accent); vertical-align: -2px; margin-left: 1px; }
+  .steps { position: absolute; left: 0; top: 66px; display: grid; gap: 7px; font-size: 14px; }
+  .step { display: flex; align-items: center; gap: 9px; color: var(--muted); white-space: nowrap; }
+  .ico { width: 16px; height: 16px; flex: none; }
+  .done { position: absolute; left: 0; right: 0; }
+  .pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; font-size: 14px; font-weight: 500;
+    background: color-mix(in oklab, var(--good) 16%, transparent); color: var(--good); white-space: nowrap; }
+  .detail { margin-top: 10px; font-size: 13px; color: var(--subtle); white-space: nowrap; }
+  /* counter */
+  .label { position: absolute; top: 18px; font-size: 14px; color: var(--muted); white-space: nowrap; }
+  .num { position: absolute; top: 40px; font: 600 52px/1 var(--display); color: var(--text); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  /* showcase */
+  .frame { position: absolute; left: 0; top: 22px; width: 168px; height: 126px; border-radius: 12px; overflow: hidden; background: var(--card); border: 1px solid var(--line); }
+  .frame img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .cap { position: absolute; left: 190px; right: 0; top: 46px; }
+  .cap b { display: block; font-size: 18px; font-weight: 600; white-space: nowrap; }
+  .cap span { display: block; margin-top: 6px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .dots { position: absolute; left: 190px; top: 118px; display: flex; gap: 6px; }
+  .dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--line); }
+  .dots i.on { background: var(--accent); }
+  /* No square logo but a wordmark: drop the left column instead of repeating the name as a letter tile. */
+  #card.nomark #mark, #card.nomark #glow, #card.nomark .rule { display: none; }
+  #card.nomark .scene { left: 32px; }
+</style>
+</head>
+<body>
+<div id="card">
+  <div id="glow"></div>
+  <div id="mark"></div>
+  <div class="rule"></div>
+  <div class="scene" id="s0"></div>
+  <div class="scene" id="s1"></div>
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const clamp = (x) => Math.max(0, Math.min(1, x));
+  const ease = (x) => { x = clamp(x); return x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2; };
+  /** 0→1 over [a, b] seconds, eased. */
+  const seg = (t, a, b) => ease((t - a) / (b - a));
+  /** Fade (and slide by dy px) an element in by o in 0..1. */
+  const show = (el, o, dy = 0) => { el.style.opacity = o; el.style.transform = `translateY(${(1 - o) * dy}px)`; };
+  const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+  const pick = (list, t, from, every) => list[Math.min(list.length - 1, Math.max(0, Math.floor((t - from) / every)))];
+
+  let B; // the brand, from brand.json
+  window.LOOP = 11;
+  /** The scene window: the brand card hands over at 1.9 s and takes back at 10.1 s. */
+  const IN = [1.9, 2.2], OUT = [9.7, 10.1];
+  const sceneOpacity = (t) => seg(t, ...IN) * (1 - seg(t, ...OUT));
+
+  const ICON = {
+    spin: (t) => `<circle cx="8" cy="8" r="6" fill="none" stroke="${B.colors.line}" stroke-width="2"/><path d="M8 2a6 6 0 0 1 6 6" fill="none" stroke="${B.colors.accent}" stroke-width="2" stroke-linecap="round" transform="rotate(${(t * 504) % 360} 8 8)"/>`,
+    ok: () => `<circle cx="8" cy="8" r="7" fill="${B.colors.good}" opacity=".18"/><path d="M4.5 8.3l2.3 2.3 4.7-5" fill="none" stroke="${B.colors.good}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>`,
+    warn: () => `<circle cx="8" cy="8" r="7" fill="${B.colors.bad}" opacity=".18"/><path d="M8 4.5v4.2M8 11.3v.1" stroke="${B.colors.bad}" stroke-width="1.8" stroke-linecap="round"/>`,
+    tick: `<svg class="ico" viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  };
+  /** Result pill + cycling detail lines, shared by chat and counter. */
+  function resultBlock(S, top) {
+    const d = el("div", "done"); d.id = "done"; d.style.top = top + "px";
+    const p = el("div", "pill"); p.innerHTML = ICON.tick; p.append(el("span", null, S.result));
+    const det = el("div", "detail"); det.id = "detail";
+    d.append(p, det);
+    return d;
+  }
+  function drawResult(t, S, from) {
+    show($("done"), seg(t, from, from + 0.3), 8);
+    $("detail").textContent = pick(S.details?.length ? S.details : [""], t, from, 0.8);
+  }
+
+  const SCENES = {
+    /** A customer's question types out, steps run and resolve, a result appears. Software, agents, services. */
+    chat: {
+      setup(S, root) {
+        const ask = el("div", "ask"); ask.append(el("span"), el("span", "caret")); ask.firstChild.id = "askText"; ask.lastChild.id = "caret";
+        const steps = el("div", "steps"); steps.id = "steps";
+        S.steps.forEach((s, i) => { const r = el("div", "step"); r.id = "st" + i; r.innerHTML = `<svg class="ico" viewBox="0 0 16 16"></svg>`; r.append(el("span", null, s.text)); steps.append(r); });
+        root.append(ask, steps, resultBlock(S, 66));
+      },
+      draw(t, S) {
+        const n = Math.round(clamp((t - 2.1) / 1.1) * S.question.length);
+        $("askText").textContent = S.question.slice(0, n);
+        $("caret").style.opacity = n < S.question.length || (t < 3.8 && Math.floor(t * 3) % 2 === 0) ? 1 : 0;
+        const span = 2.9 / S.steps.length;
+        S.steps.forEach((s, i) => {
+          const a = 3.5 + i * span, b = a + span + 0.2, row = $("st" + i);
+          show(row, seg(t, a, a + 0.3), 6);
+          row.querySelector(".ico").innerHTML = t < b ? ICON.spin(t) : ICON[s.status === "warn" ? "warn" : "ok"]();
+          row.querySelector("span").style.color = t >= b && s.status === "warn" ? B.colors.bad : "";
+        });
+        $("steps").style.opacity = 1 - seg(t, 7.0, 7.3);
+        drawResult(t, S, 7.3);
+      },
+    },
+    /** A real figure counts up under a label, then a result. Finance, analytics, impact, scale. */
+    counter: {
+      setup(S, root) {
+        const label = el("div", "label", S.label); label.id = "clabel";
+        const num = el("div", "num"); num.id = "num";
+        root.append(label, num, resultBlock(S, 100));
+      },
+      fmt(S, v) {
+        const n = S.decimals ? v.toFixed(S.decimals) : Math.round(v).toString();
+        const [i, d] = n.split(".");
+        const grouped = S.group === false ? i : i.replace(/\B(?=(\d{3})+(?!\d))/g, S.groupSep ?? ",");
+        return (S.prefix ?? "") + grouped + (d ? "." + d : "") + (S.suffix ?? "");
+      },
+      draw(t, S) {
+        show($("clabel"), seg(t, 2.1, 2.4), 6);
+        show($("num"), seg(t, 2.3, 2.6), 6);
+        $("num").textContent = this.fmt(S, S.value * seg(t, 2.4, 6.2));
+        drawResult(t, S, 6.8);
+      },
+    },
+    /** 2–3 images (products, dishes, projects, screenshots) cycle in a small frame with a caption. Shops, food, portfolios. */
+    showcase: {
+      setup(S, root) {
+        const frame = el("div", "frame");
+        S.items.forEach((it, i) => { const im = el("img"); im.id = "im" + i; im.src = it.image; im.alt = ""; frame.append(im); });
+        const cap = el("div", "cap"); const b = el("b"); b.id = "capT"; const s = el("span"); s.id = "capS"; cap.append(b, s);
+        const dots = el("div", "dots"); S.items.forEach((_, i) => { const d = el("i"); d.id = "dot" + i; dots.append(d); });
+        root.append(frame, cap, dots);
+      },
+      draw(t, S) {
+        // Each item gets an equal slice of 2.2–9.7 s; images swap with a short fade so few frames change the photo area.
+        const each = 7.5 / S.items.length;
+        const k = Math.min(S.items.length - 1, Math.max(0, Math.floor((t - 2.2) / each)));
+        S.items.forEach((_, i) => {
+          const a = 2.2 + i * each;
+          $("im" + i).style.opacity = i === 0 ? 1 : seg(t, a - 0.25, a);
+          $("dot" + i).className = i === k ? "on" : "";
+        });
+        const capIn = seg(t, 2.2 + k * each, 2.2 + k * each + 0.3);
+        show($("capT").parentElement, capIn, 6);
+        $("capT").textContent = S.items[k].title;
+        $("capS").textContent = S.items[k].text ?? "";
+      },
+    },
+  };
+
+  /** Called once by render.mjs with brand.json (image paths already turned into data URLs). */
+  window.setup = async (brand) => {
+    B = brand;
+    const root = document.documentElement.style;
+    for (const [k, v] of Object.entries(B.colors)) root.setProperty("--" + k, v);
+    // Fonts: Google Fonts by family name. display=block so no frame is drawn in a fallback font.
+    const fams = [...new Set([B.fonts?.display, B.fonts?.body].filter(Boolean))];
+    if (fams.length) {
+      const link = Object.assign(document.createElement("link"), { rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?" + fams.map((f) => "family=" + encodeURIComponent(f).replace(/%20/g, "+") + ":wght@400;500;600").join("&") + "&display=block" });
+      document.head.append(link);
+      await new Promise((r) => { link.onload = r; link.onerror = r; });
+      if (B.fonts.display) root.setProperty("--display", `"${B.fonts.display}", Georgia, serif`);
+      if (B.fonts.body) root.setProperty("--body", `"${B.fonts.body}", system-ui, sans-serif`);
+      await Promise.all(fams.map((f) => document.fonts.load(`16px "${f}"`).catch(() => {})));
+    }
+    // Left mark: the square logo, or the brand's first letter when there is no square logo.
+    // Left mark: the square logo; with only a wordmark, no left column; with neither, the brand's first letter.
+    if (B.logo) { const im = el("img"); im.src = B.logo; im.alt = ""; $("mark").append(im); }
+    else if (B.wordmark) $("card").classList.add("nomark");
+    else $("mark").append(el("div", "mono", [...B.name][0].toUpperCase()));
+    // Brand card: the wordmark image if there is one, otherwise the name in the display font.
+    const s0 = $("s0");
+    if (B.wordmark) { const im = el("img", "wordmark"); im.src = B.wordmark; im.alt = ""; s0.append(im); }
+    else s0.append(el("div", "word", B.name));
+    s0.append(el("div", "tag", B.tagline), el("div", "url", B.domain));
+    const type = B.story.type ?? "chat";
+    if (!SCENES[type]) throw new Error(`story.type "${type}" is not one of ${Object.keys(SCENES).join(", ")}`);
+    SCENES[type].setup(B.story, $("s1"));
+    await Promise.all([...document.images].map((im) => im.decode().catch(() => { throw new Error("image failed to load: " + im.src.slice(0, 60)); })));
+    window.render(0);
+    // Report text past the right or bottom edge, or left into the logo column, so render.mjs can fail on it.
+    const card = $("card").getBoundingClientRect();
+    const over = [];
+    for (const t of [0, 3, 5, 7, 8, 8.5, 9, 9.5]) {
+      window.render(t);
+      for (const e of document.querySelectorAll("#card *")) {
+        if (!e.textContent?.trim() || e.children.length) continue;
+        // Only text that is visible at this moment: multiply opacity up the tree (scenes fade as a whole).
+        let o = 1; for (let n = e; n && n.id !== "card"; n = n.parentElement) o *= +getComputedStyle(n).opacity;
+        if (o < 0.5) continue;
+        const r = e.getBoundingClientRect();
+        const sceneLeft = e.closest(".scene")?.getBoundingClientRect().left ?? card.left;
+        if (r.right > card.right - 8 || r.bottom > card.bottom - 4 || r.left < sceneLeft - 4) over.push(`"${e.textContent.trim().slice(0, 40)}" at ${t}s`);
+      }
+    }
+    window.render(0);
+    return [...new Set(over)];
+  };
+
+  /** Draw the frame at t seconds: brand card → scene → brand card. */
+  window.render = (t) => {
+    if (!B) return;
+    show($("s0"), 1 - seg(t, 1.6, 2.0) + seg(t, 10.2, 10.8), -8);
+    show($("s1"), sceneOpacity(t), 8);
+    SCENES[B.story.type ?? "chat"].draw(t, B.story);
+  };
+</script>
+</body>
+</html>

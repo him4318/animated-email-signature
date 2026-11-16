@@ -1,0 +1,165 @@
+<!doctype html>
+<!--
+  The "make your signature" page. scripts/build-page.mjs replaces the BRAND placeholder below and writes a
+  single self-contained HTML file to put on the website. It's a team tool, so it tells search engines and AI
+  crawlers to stay away (the meta tag here; also add a Disallow line to robots.txt, see references/deploy.md).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="googlebot" content="noindex, nofollow">
+<title>Email signature</title>
+<style>
+  :root { color-scheme: light dark; --bg: #f6f5f3; --fg: #161616; --muted: #5d5d5d; --field: #fff; --line: #d8d6d2; --btn: #161616; --btn-fg: #fff; --err: #b3261e; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #151515; --fg: #ececec; --muted: #a3a3a3; --field: #202020; --line: #343434; --btn: #ececec; --btn-fg: #151515; --err: #f2b8b5; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 40px 16px 64px; display: grid; gap: 28px; }
+  h1 { margin: 0; font-size: 28px; line-height: 1.2; }
+  h2 { margin: 0 0 8px; font-size: 16px; }
+  p { margin: 0; }
+  .muted { color: var(--muted); }
+  form { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+  label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
+  input { font: inherit; color: var(--fg); background: var(--field); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; min-block-size: 42px; }
+  input:focus-visible { outline: 2px solid var(--fg); outline-offset: 1px; }
+  .inbox { display: grid; gap: 6px; }
+  .inbox small { font-size: 12px; color: var(--muted); }
+  .mail { border: 1px solid var(--line); border-radius: 14px; padding: 20px; overflow: hidden; }
+  .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  button { font: inherit; font-weight: 600; padding: 10px 18px; min-block-size: 44px; border: 0; border-radius: 10px; background: var(--btn); color: var(--btn-fg); cursor: pointer; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .err { color: var(--err); }
+  dl { margin: 0; display: grid; gap: 12px; }
+  dt { font-weight: 600; }
+  dd { margin: 0; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Your email signature</h1>
+    <p class="muted" id="intro"></p>
+  </header>
+
+  <form id="f" onsubmit="return false">
+    <label>Name <input name="name" autocomplete="name" required></label>
+    <label>Title <input name="title" autocomplete="organization-title"></label>
+    <label>Email <input name="email" type="email" autocomplete="email"></label>
+  </form>
+
+  <section aria-label="Preview" style="display:grid;gap:14px">
+    <div class="inbox"><small>Light inbox</small><div class="mail" id="light"></div></div>
+    <div class="inbox"><small>Dark inbox</small><div class="mail" id="dark"></div></div>
+  </section>
+
+  <div class="row">
+    <button type="button" id="copy" disabled>Copy signature</button>
+    <span role="status" id="msg" class="muted">Add your name to copy.</span>
+  </div>
+
+  <section>
+    <h2>Where to paste it</h2>
+    <p class="muted" style="margin-bottom:10px">Menu names change between app versions, so look for "Signature" in your mail app's settings if these don't match.</p>
+    <dl>
+      <div><dt>Gmail (web)</dt><dd>Settings (gear) → See all settings → General → Signature → Create new → paste. Under "Signature defaults" pick it for new emails and for replies, then Save Changes at the bottom of the page.</dd></div>
+      <div><dt>Outlook</dt><dd>Settings → Signatures (in older desktop Outlook: File → Options → Mail → Signatures) → new signature → paste → set it as the default → Save.</dd></div>
+      <div><dt>Apple Mail</dt><dd>Mail → Settings → Signatures → + → paste. Untick "Always match my default message font" so the layout stays.</dd></div>
+    </dl>
+    <p class="muted" style="margin-top:12px">Paste what you copied here rather than uploading the GIF yourself, so the image keeps its size and its link. Some mail apps (older desktop Outlook, for one) show only the first frame, which is a finished card on its own.</p>
+  </section>
+</main>
+
+<script>
+  const BRAND = /*BRAND*/ null;
+  const PREVIEW_GIF = new URLSearchParams(location.search).get("preview");
+
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+  /**
+   * Email-safe markup: a table, inline styles, a fixed image size. Name and title stay live text so one GIF
+   * serves everyone. The name has no colour, so it takes the inbox's own (readable in light and dark mode).
+   * The image src is always the absolute URL on the live site: a mail app can't load anything else.
+   */
+  function signatureHtml({ name, title, email }) {
+    const second = [title.trim() && esc(title.trim()), esc(BRAND.name),
+      email.trim() && `<a href="mailto:${esc(email.trim())}" style="color:${BRAND.link};text-decoration:none;">${esc(email.trim())}</a>`]
+      .filter(Boolean).join(" · ");
+    return `<table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;">
+<tr><td style="padding:0 0 2px;font-size:15px;font-weight:bold;">${esc(name.trim())}</td></tr>
+<tr><td style="padding:0 0 8px;font-size:13px;color:${BRAND.subtle};">${second}</td></tr>
+<tr><td><a href="${esc(BRAND.siteUrl)}" style="text-decoration:none;"><img src="${esc(BRAND.gifUrl)}" width="480" height="136" alt="${esc(BRAND.name)}, ${esc(BRAND.tagline)}. ${esc(BRAND.domain)}" style="display:block;border:0;width:480px;max-width:100%;height:auto;border-radius:6px;"></a></td></tr>
+</table>`;
+  }
+  const signatureText = ({ name, title, email }) =>
+    [name.trim(), [title.trim(), BRAND.name].filter(Boolean).join(" · "), email.trim(), BRAND.siteUrl].filter(Boolean).join("\n");
+
+  const f = document.getElementById("f");
+  const btn = document.getElementById("copy");
+  const msg = document.getElementById("msg");
+  const values = () => Object.fromEntries(new FormData(f));
+  let timer, last = ""; // declared before the first draw(), which calls say()
+  document.getElementById("intro").textContent =
+    `Type your details, copy the signature and paste it into your mail app's signature settings.`;
+  document.getElementById("dark").style.cssText = `background:${BRAND.colors.bg};color:${BRAND.colors.text}`;
+  document.getElementById("light").style.cssText = "background:#fff;color:#161616";
+  f.email.placeholder = BRAND.email || "";
+
+  function draw() {
+    const v = values();
+    let preview = signatureHtml(v.name.trim() ? v : { ...v, name: "Your name" });
+    // ?preview=<gif> shows a local GIF before the real one is deployed; what gets copied still uses gifUrl.
+    if (PREVIEW_GIF) preview = preview.replace(esc(BRAND.gifUrl), esc(PREVIEW_GIF));
+    document.getElementById("light").innerHTML = preview;
+    document.getElementById("dark").innerHTML = preview;
+    btn.disabled = !v.name.trim();
+    if (btn.disabled) say("Add your name to copy.");
+    else if (msg.textContent === "Add your name to copy.") say("");
+  }
+  f.addEventListener("input", draw);
+  draw();
+
+  function say(text, error = false) {
+    // VoiceOver skips a repeated identical message, so make a repeat differ by an invisible no-break space.
+    if (text && text === last) text += " ";
+    last = text;
+    msg.textContent = text;
+    msg.className = error ? "err" : "muted";
+  }
+
+  /** Fallback when the Clipboard API is denied: select a rendered copy and use the old copy command (keeps formatting). */
+  function copyBySelection(html) {
+    const box = document.createElement("div");
+    box.innerHTML = html;
+    box.style.cssText = "position:fixed;inset-block-start:0;opacity:0;pointer-events:none";
+    document.body.append(box);
+    const range = document.createRange();
+    range.selectNodeContents(box);
+    const sel = getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    try { return document.execCommand("copy"); } catch { return false; } finally { sel.removeAllRanges(); box.remove(); }
+  }
+
+  btn.addEventListener("click", async () => {
+    const v = values();
+    const html = signatureHtml(v);
+    clearTimeout(timer);
+    let ok;
+    try {
+      await navigator.clipboard.write([new ClipboardItem({
+        "text/html": new Blob([html], { type: "text/html" }),
+        "text/plain": new Blob([signatureText(v)], { type: "text/plain" }),
+      })]);
+      ok = true;
+    } catch {
+      ok = copyBySelection(html);
+    }
+    say(ok ? "Copied. Paste it into your mail app's signature settings." : "Couldn't copy. Select the light preview above, copy it, and paste that instead.", !ok);
+    timer = setTimeout(() => say(""), 5000);
+  });
+</script>
+</body>
+</html>
